@@ -1,0 +1,8 @@
+*/shelf/
+*/workspace.xml
+*/dataSources.local.xml
+*/httpRequests/
+/.idea
+/venv
+/yoink/settings
+/yoink/__pycache__
