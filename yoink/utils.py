@@ -1,11 +1,17 @@
 import os
 import json
+import re
 from enum import Enum
 from functools import cached_property
 
 _ope = os.path.exists
 _opj = os.path.join
 _omd = os.mkdir
+__splitter = re.compile(r'(?<!^)(?=[A-Z])')
+
+
+def cc2sc(key):
+    return __splitter.sub('_', key).lower()
 
 
 class AutoName(Enum):
@@ -26,10 +32,10 @@ class Config(metaclass=Singleton):
     __path = 'yoink/config'
 
     def __init__(self):
-        self.yoink_path = ""
-        self.path_prefix = ""
-        self.contests_meta = {}
-        self.handles_meta = {}
+        self.yoink_path = ''
+        self.path_prefix = ''
+        self.contests_meta = {'Count': 0, 'Contests': []}
+        self.handles_meta = {'Count': 0, 'Handles': {}}
 
         if not _ope(Config.__path):
             with open(Config.__path, 'w') as fp:
@@ -44,15 +50,9 @@ class Config(metaclass=Singleton):
                 if key == 'YoinkPath':
                     self.yoink_path = value
 
-            # Create working directories if don't exist
+            # Create working directory if doesn't exist
             if not _ope(self.path):
                 _omd(self.path)
-
-            if not _ope(self.contests_path):
-                _omd(self.contests_path)
-
-            if not _ope(self.handles_path):
-                _omd(self.handles_path)
 
             if _ope(self.contests_meta_path):
                 with open(self.contests_meta_path, 'r') as fp:
@@ -73,22 +73,12 @@ class Config(metaclass=Singleton):
     def path(self):
         return _opj(self.path_prefix, self.yoink_path)
 
-    # path to dir
-    @cached_property
-    def contests_path(self):
-        return _opj(self.path, "Contests")
-
-    # path to dir
-    @cached_property
-    def handles_path(self):
-        return _opj(self.path, "Handles")
-
     # path to json
     @cached_property
     def contests_meta_path(self):
-        return _opj(self.contests_path, "meta.json")
+        return _opj(self.path, 'contests.json')
 
     # path to json
     @cached_property
     def handles_meta_path(self):
-        return _opj(self.handles_path, "meta.json")
+        return _opj(self.path, 'handles.json')
