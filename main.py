@@ -1,5 +1,5 @@
-from yoink.yanker import Handler
+from yoink.yanker import Yanker
 
 if __name__ == "__main__":
-    h = Handler()
-    h.get_contests()
+    y = Yanker()
+    y.prepare_contests()

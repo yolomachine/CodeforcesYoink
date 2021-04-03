@@ -4,5 +4,5 @@
 */httpRequests/
 /.idea
 /venv
-/yoink/settings
+/yoink/config
 /yoink/__pycache__
