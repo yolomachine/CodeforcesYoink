@@ -1,5 +1,4 @@
 import time
-
 import requests
 from functools import cached_property
 from yoink.globals import config
@@ -11,20 +10,16 @@ class Yanker(metaclass=Singleton):
     def __init__(self):
         self.contests = {}
 
-    def prepare_contests(self, count=-1):
-        r = range(len(self.requested_contest_list) if count == -1 else count)
-        for i in r:
+    def download_contests(self):
+        i = 0
+        count = len(self.requested_contest_list) if config.data['Max-Contests'] == -1 else config.data['Max-Contests']
+        while i < count and i < len(self.requested_contest_list):
             entry = self.requested_contest_list[i]
             contest = Contest(entry)
-            contest.prepare_submissions()
-            self.contests[contest.id] = contest
-
-    def dump(self):
-        config.handles_meta['Count'] = len(config.handles_meta['Handles'])
-        config.contests_meta['Count'] = len(config.contests_meta['Contests'])
-        config.dump()
-        for contest in self.contests.values():
-            contest.dump()
+            if contest.phase in config.data['Supported-Phases']:
+                i += 1
+                contest.download_submissions()
+                self.contests[contest.id] = contest
 
     # dict
     @cached_property
@@ -37,6 +32,5 @@ class Yanker(metaclass=Singleton):
             print(r.status_code)
             exit()
 
-        # In order not to cause mass destruction
-        time.sleep(5)
+        time.sleep(config.data['Request-Delay'])
         return r.json()['result']

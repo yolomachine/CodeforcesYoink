@@ -4,6 +4,9 @@ import re
 from enum import Enum
 from functools import cached_property
 
+from yoink.contest import Contest
+from yoink.submission import Submission
+
 _ope = os.path.exists
 _opj = os.path.join
 _omd = os.mkdir
@@ -29,56 +32,54 @@ class Singleton(type):
 
 
 class Config(metaclass=Singleton):
-    __path = 'yoink/config'
+    __built_in_path = 'yoink/config'
 
     def __init__(self):
-        self.yoink_path = ''
-        self.path_prefix = ''
-        self.contests_meta = {'Count': 0, 'Contests': []}
-        self.handles_meta = {'Count': 0, 'Handles': {}}
+        self.data = {
+            'Path-Prefix': os.getcwd(),
+            'Yoink-Path': 'Yoink-Data-Default',
+            'Contests-Meta-Json-Path': 'contests.json',
+            'GET-Headers': {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+                'Connection': 'keep-alive',
+                'Cookie': '',
+                'Host': 'codeforces.com',
+                'Upgrade-Insecure-Requests': '1',
+                'User-Agent': ''
+            },
+            'Request-Timeout': 10,
+            'Request-Delay': 0.5,
+            'Supported-Verdicts': [
+                Submission.Verdict.OK.value
+            ],
+            'Supported-Phases': [
+                Contest.Phase.FINISHED.value
+            ],
+            'Max-Contests': 3,
+            'Max-Submissions': -1
+        }
 
-        if not _ope(Config.__path):
-            with open(Config.__path, 'w') as fp:
-                fp.write(f'YoinkPath = "{_opj(os.getcwd(), "Yoink Stuff")}')
+        # Create working directory if doesn't exist
+        if not _ope(self.working_dir_path):
+            _omd(self.working_dir_path)
 
-        with open(Config.__path) as f:
-            lines = f.read().strip().split('\n')
-            for line in lines:
-                (key, value) = map(lambda x: x.strip(' "'), line.split('='))
-                if key == 'PathPrefix':
-                    self.path_prefix = value
-                if key == 'YoinkPath':
-                    self.yoink_path = value
+        # Serialize default data if doesn't exist
+        if not _ope(Config.__built_in_path):
+            with open(Config.__built_in_path, 'w') as fp:
+                json.dump(self.data, fp)
+        # Deserialize data from JSON
+        else:
+            with open(Config.__built_in_path, 'r') as fp:
+                data = json.load(fp)
+                for key in data:
+                    self.data[key] = data[key]
 
-            # Create working directory if doesn't exist
-            if not _ope(self.path):
-                _omd(self.path)
-
-            if _ope(self.contests_meta_path):
-                with open(self.contests_meta_path, 'r') as fp:
-                    self.contests_meta = json.load(fp)
-
-            if _ope(self.handles_meta_path):
-                with open(self.handles_meta_path, 'r') as fp:
-                    self.handles_meta = json.load(fp)
-
-    def dump(self):
-        with open(self.contests_meta_path, 'w') as fp:
-            json.dump(self.contests_meta, fp, indent=4)
-        with open(self.handles_meta_path, 'w') as fp:
-            json.dump(self.handles_meta, fp, indent=4)
-
-    # path tp dir
+    # Path to the working directory
     @cached_property
-    def path(self):
-        return _opj(self.path_prefix, self.yoink_path)
+    def working_dir_path(self):
+        return _opj(self.data['Path-Prefix'], self.data['Yoink-Path'])
 
-    # path to json
-    @cached_property
-    def contests_meta_path(self):
-        return _opj(self.path, 'contests.json')
-
-    # path to json
-    @cached_property
-    def handles_meta_path(self):
-        return _opj(self.path, 'handles.json')
+    def combine_path(self, path):
+        return _opj(self.working_dir_path, path)

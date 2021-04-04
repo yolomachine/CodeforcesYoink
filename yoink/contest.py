@@ -1,8 +1,6 @@
 import json
 import os
 import time
-from random import randrange
-
 import requests
 from enum import unique, auto
 from functools import cached_property
@@ -43,7 +41,9 @@ class Contest:
     ]
 
     def __init__(self, info):
-        self.meta = {'Count': 0, 'Submissions': []}
+        self.meta = {
+            'Submissions': {}
+        }
         self.submissions = {}
         self.id = str(info['id'])
         self.name = info['name']
@@ -58,75 +58,89 @@ class Contest:
             if key in info:
                 self.__setattr__(cc2sc(key), info[key])
 
-        if self.phase != Contest.Phase.FINISHED.value:
-            return
-
+        # Create working directory if doesn't exist
         if not _ope(self.path):
             _omd(self.path)
 
+        # Deserialize data from JSON
         if _ope(self.meta_path):
             with open(self.meta_path, 'r') as fp:
                 self.meta = json.load(fp)
 
-        config.contests_meta['Contests'].append(self.id)
-
-    def prepare_submissions(self):
+    def download_submissions(self):
         if self.phase != Contest.Phase.FINISHED.value:
             print(f'# [Contest][{self.id}]: Not finished')
             return
+        print(f'# [Contest][{self.id}]: Download started')
 
-        id_from = 1
-        count = 25000
-        print(f'# [Contest][{self.id}]: Yoinking started')
+        cap = config.data['Max-Submissions']
+        pointer = 1
+        batch = 25000
         while True:
-            submissions = self.request_submissions(id_from, count)
+            submissions = self.request_submissions(pointer, batch)
             for entry in submissions:
+                # TODO:
+                # Refactor
+                submission_id = str(entry['id'])
+                if submission_id in self.meta['Submissions']:
+                    serialized_submission_path = self.get_submission_path(submission_id)
+                    if _ope(serialized_submission_path) and \
+                            self.meta['Submissions'][submission_id] == Submission.DownloadStatus.FINISHED.value:
+                        submission = Submission.deserialize(serialized_submission_path)
+                        self.submissions[submission.id] = submission
+                        continue
+
                 entry['contestId'] = self.id
                 submission = Submission(entry, self)
-                self.submissions[submission.id] = submission
+                if submission.verdict in config.data['Supported-Verdicts']:
+                    self.submissions[submission.id] = submission
+                    if submission.id not in self.meta['Submissions']:
+                        self.meta['Submissions'][submission.id] = Submission.DownloadStatus.NOT_STARTED.value
+                    cap -= 1
+                    if cap == 0:
+                        break
+            self.save_meta()
 
-            if len(submissions) < count:
+            if len(submissions) < batch or cap == 0:
                 break
-            id_from += count
+            pointer += batch
 
-        self.meta['Submissions'] = self.submissions.keys()
-        self.meta['Count'] = len(self.submissions)
-
+    def download_source_codes(self):
         for submission in self.submissions.values():
-            submission.request_code()
+            if self.meta['Submissions'][submission.id] != Submission.DownloadStatus.FINISHED.value or \
+                    not _ope(self.get_submission_path(submission.id)):
+                submission.request_code()
+                submission.save()
+                self.save_meta()
 
-    def dump(self):
+    def save_meta(self):
         with open(self.meta_path, 'w') as fp:
             json.dump(self.meta, fp, indent=4)
-        for submission in self.submissions:
-            submission.dump()
 
-    # path to dir
+    # Path to the contest directory
     @cached_property
     def path(self):
-        return _opj(config.path, self.id)
+        return config.combine_path(self.id)
 
-    # path to json
+    # Path to the stored meta data
     @cached_property
     def meta_path(self):
         return _opj(self.path, 'meta.json')
 
+    def get_submission_path(self, submission_id):
+        return _opj(self.path, 'submissions', f'{submission_id}.json')
+
     def request_submissions(self, id_from, count):
-        print(f'#? [Contest][{self.id}]: Trying to request {count} submissions from id {id_from}')
+        print(f'#? [Contest][{self.id}]: Requesting {id_from}-{count} submissions')
         payload = {'contestId': int(self.id), 'from': id_from, 'count': count}
         r = requests.get('https://codeforces.com/api/contest.status', params=payload)
 
-        interval = randrange(10, 20, 1)
         try:
             r.raise_for_status()
         except requests.HTTPError:
-            print(r.status_code)
-            print(f'#! FAIL')
-            # In order not to cause mass destruction
-            time.sleep(interval)
+            print(f'#! [{r.status_code}] REQUEST ERROR')
+            time.sleep(config.data['Request-Delay'])
             return
 
-        print(f'#! OK')
-        # In order not to cause mass destruction
-        time.sleep(interval)
+        time.sleep(config.data['Request-Delay'])
         return r.json()['result']
