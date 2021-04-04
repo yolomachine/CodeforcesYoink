@@ -2,11 +2,10 @@ import json
 import os
 import time
 import requests
-from enum import unique, auto
+import yoink.enums as enums
 from functools import cached_property
-from yoink.globals import config
 from yoink.submission import Submission
-from yoink.utils import AutoName, cc2sc
+from yoink.utils import cc2sc, Config
 
 _ope = os.path.exists
 _opj = os.path.join
@@ -14,20 +13,6 @@ _omd = os.mkdir
 
 
 class Contest:
-    @unique
-    class Phase(AutoName):
-        BEFORE = auto()
-        CODING = auto()
-        PENDING_SYSTEM_TEST = auto()
-        SYSTEM_TEST = auto()
-        FINISHED = auto()
-
-    @unique
-    class Type(AutoName):
-        CF = auto()
-        IOI = auto()
-        ICPC = auto()
-
     __optional_fields = [
         'preparedBy',
         'websiteUrl',
@@ -41,6 +26,7 @@ class Contest:
     ]
 
     def __init__(self, info):
+        self.config = Config()
         self.meta = {
             'Submissions': {}
         }
@@ -62,22 +48,28 @@ class Contest:
         if not _ope(self.path):
             _omd(self.path)
 
+        if not _ope(_opj(self.path, 'submissions')):
+            _omd(_opj(self.path, 'submissions'))
+
         # Deserialize data from JSON
         if _ope(self.meta_path):
             with open(self.meta_path, 'r') as fp:
                 self.meta = json.load(fp)
 
-    def download_submissions(self):
-        if self.phase != Contest.Phase.FINISHED.value:
+    def download_submissions_info(self):
+        if self.phase != enums.Phase.FINISHED.value:
             print(f'# [Contest][{self.id}]: Not finished')
             return
-        print(f'# [Contest][{self.id}]: Download started')
+        print(f'# [Contest][{self.id}]: Getting raw submissions\' info')
 
-        cap = config.data['Max-Submissions']
+        cap = self.config.data['Max-Submissions']
         pointer = 1
         batch = 25000
         while True:
             submissions = self.request_submissions(pointer, batch)
+            if len(submissions) > 0:
+                print(f'Received {len(submissions)} submissions')
+            counter = 0
             for entry in submissions:
                 # TODO:
                 # Refactor
@@ -85,20 +77,23 @@ class Contest:
                 if submission_id in self.meta['Submissions']:
                     serialized_submission_path = self.get_submission_path(submission_id)
                     if _ope(serialized_submission_path) and \
-                            self.meta['Submissions'][submission_id] == Submission.DownloadStatus.FINISHED.value:
+                            self.meta['Submissions'][submission_id] == enums.DownloadStatus.FINISHED.value:
                         submission = Submission.deserialize(serialized_submission_path)
                         self.submissions[submission.id] = submission
+                        counter += 1
                         continue
 
                 entry['contestId'] = self.id
                 submission = Submission(entry, self)
-                if submission.verdict in config.data['Supported-Verdicts']:
+                if submission.verdict in self.config.data['Supported-Verdicts']:
                     self.submissions[submission.id] = submission
                     if submission.id not in self.meta['Submissions']:
-                        self.meta['Submissions'][submission.id] = Submission.DownloadStatus.NOT_STARTED.value
+                        self.meta['Submissions'][submission.id] = enums.DownloadStatus.NOT_STARTED.value
+                    counter += 1
                     cap -= 1
                     if cap == 0:
                         break
+            print(f'Approved {counter} submissions')
             self.save_meta()
 
             if len(submissions) < batch or cap == 0:
@@ -106,11 +101,17 @@ class Contest:
             pointer += batch
 
     def download_source_codes(self):
+        if self.phase != enums.Phase.FINISHED.value:
+            print(f'# [Contest][{self.id}]: Not finished')
+            return
+        if len(self.submissions) == 0:
+            print(f'# [Contest][{self.id}]: No submissions\' info stored, download it first')
+            return
         for submission in self.submissions.values():
-            if self.meta['Submissions'][submission.id] != Submission.DownloadStatus.FINISHED.value or \
+            if self.meta['Submissions'][submission.id] != enums.DownloadStatus.FINISHED.value or \
                     not _ope(self.get_submission_path(submission.id)):
-                submission.request_code()
-                submission.save()
+                if submission.request_code():
+                    submission.save()
                 self.save_meta()
 
     def save_meta(self):
@@ -120,7 +121,7 @@ class Contest:
     # Path to the contest directory
     @cached_property
     def path(self):
-        return config.combine_path(self.id)
+        return self.config.combine_path(self.id)
 
     # Path to the stored meta data
     @cached_property
@@ -131,7 +132,7 @@ class Contest:
         return _opj(self.path, 'submissions', f'{submission_id}.json')
 
     def request_submissions(self, id_from, count):
-        print(f'#? [Contest][{self.id}]: Requesting {id_from}-{count} submissions')
+        print(f'#? [Contest][{self.id}]: Requesting {id_from}-{id_from + count - 1} submissions')
         payload = {'contestId': int(self.id), 'from': id_from, 'count': count}
         r = requests.get('https://codeforces.com/api/contest.status', params=payload)
 
@@ -139,8 +140,8 @@ class Contest:
             r.raise_for_status()
         except requests.HTTPError:
             print(f'#! [{r.status_code}] REQUEST ERROR')
-            time.sleep(config.data['Request-Delay'])
+            time.sleep(self.config.data['Request-Delay'])
             return
 
-        time.sleep(config.data['Request-Delay'])
+        time.sleep(self.config.data['Request-Delay'])
         return r.json()['result']

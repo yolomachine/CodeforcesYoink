@@ -1,11 +1,8 @@
 import os
 import json
 import re
-from enum import Enum
+import yoink.enums as enums
 from functools import cached_property
-
-from yoink.contest import Contest
-from yoink.submission import Submission
 
 _ope = os.path.exists
 _opj = os.path.join
@@ -15,11 +12,6 @@ __splitter = re.compile(r'(?<!^)(?=[A-Z])')
 
 def cc2sc(key):
     return __splitter.sub('_', key).lower()
-
-
-class AutoName(Enum):
-    def _generate_next_value_(name, start, count, last_values):
-        return name
 
 
 class Singleton(type):
@@ -36,7 +28,7 @@ class Config(metaclass=Singleton):
 
     def __init__(self):
         self.data = {
-            'Path-Prefix': os.getcwd(),
+            'Path-Prefix': os.path.abspath(os.sep),
             'Yoink-Path': 'Yoink-Data-Default',
             'Contests-Meta-Json-Path': 'contests.json',
             'GET-Headers': {
@@ -49,32 +41,36 @@ class Config(metaclass=Singleton):
                 'Upgrade-Insecure-Requests': '1',
                 'User-Agent': ''
             },
-            'Request-Timeout': 10,
-            'Request-Delay': 0.5,
+            'Request-Timeout': 300,
+            'Request-Delay': 1,
             'Supported-Verdicts': [
-                Submission.Verdict.OK.value
+                enums.Verdict.OK.value
             ],
             'Supported-Phases': [
-                Contest.Phase.FINISHED.value
+                enums.Phase.FINISHED.value
+            ],
+            'Allowed-Contest-Formats': [
+                enums.Type.CF,
+                enums.Type.ICPC
             ],
             'Max-Contests': 3,
             'Max-Submissions': -1
         }
 
-        # Create working directory if doesn't exist
-        if not _ope(self.working_dir_path):
-            _omd(self.working_dir_path)
-
         # Serialize default data if doesn't exist
         if not _ope(Config.__built_in_path):
             with open(Config.__built_in_path, 'w') as fp:
-                json.dump(self.data, fp)
+                json.dump(self.data, fp, indent=4)
         # Deserialize data from JSON
         else:
             with open(Config.__built_in_path, 'r') as fp:
                 data = json.load(fp)
                 for key in data:
                     self.data[key] = data[key]
+
+        # Create working directory if doesn't exist
+        if not _ope(self.working_dir_path):
+            _omd(self.working_dir_path)
 
     # Path to the working directory
     @cached_property
