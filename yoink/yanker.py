@@ -1,3 +1,4 @@
+import json
 import time
 import requests
 from functools import cached_property
@@ -29,6 +30,10 @@ class Yanker(metaclass=Singleton):
                 contest.download_source_codes()
             finally:
                 continue
+
+    def save(self):
+        with open(self.config.contests_meta_path, 'w') as fp:
+            json.dump({'Contests': list(self.contests.keys())}, fp)
 
     # dict
     @cached_property

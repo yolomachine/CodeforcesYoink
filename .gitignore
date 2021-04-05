@@ -6,3 +6,4 @@
 /venv
 /yoink/config
 /yoink/__pycache__
+dataset*

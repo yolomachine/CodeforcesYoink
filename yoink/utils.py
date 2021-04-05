@@ -77,5 +77,10 @@ class Config(metaclass=Singleton):
     def working_dir_path(self):
         return _opj(self.data['Path-Prefix'], self.data['Yoink-Path'])
 
+    # Path to contests meta JSON
+    @cached_property
+    def contests_meta_path(self):
+        return self.combine_path(self.data['Contests-Meta-Json-Path'])
+
     def combine_path(self, path):
         return _opj(self.working_dir_path, path)
