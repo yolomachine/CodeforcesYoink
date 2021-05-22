@@ -24,6 +24,7 @@ class Submission:
         self.memory_consumed_bytes = info['memoryConsumedBytes']
         self.handles = [member['handle'] for member in info['author']['members']]
         self.tags = [tag for tag in info['problem']['tags']]
+        self.language = info['programmingLanguage']
         self.verdict = enums.Verdict.FAILED.value
         if 'verdict' in info:
             self.verdict = info['verdict']
@@ -81,6 +82,7 @@ class Submission:
                 'Id': self.id,
                 'Contest-Id': self.owner.id,
                 'Tags': self.tags,
+                'Language': self.language,
                 'Verdict': self.verdict,
                 'Authors': self.handles,
                 'Time-Consumed': self.time_consumed_millis,
@@ -98,6 +100,7 @@ class Submission:
         entry = {
             'id': data['Id'],
             'problem': {'tags': data['Tags']},
+            'programmingLanguage': data['Language'],
             'verdict': data['Verdict'],
             'author': {'members': [{'handle': h for h in data['Authors']}]},
             'timeConsumedMillis': data['Time-Consumed'],

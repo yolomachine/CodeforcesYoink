@@ -41,20 +41,42 @@ class Config(metaclass=Singleton):
                 'Upgrade-Insecure-Requests': '1',
                 'User-Agent': ''
             },
-            'Request-Timeout': 300,
+            'Request-Timeout': 120,
             'Request-Delay': 1,
-            'Supported-Verdicts': [
-                enums.Verdict.OK.value
-            ],
-            'Supported-Phases': [
-                enums.Phase.FINISHED.value
-            ],
-            'Allowed-Contest-Formats': [
+            'Max-Contests': -1,
+            'Max-Submissions': -1,
+            'Supported-Contest-Formats': [
                 enums.Type.CF,
                 enums.Type.ICPC
             ],
-            'Max-Contests': 3,
-            'Max-Submissions': -1
+            'Supported-Verdicts': [
+                enums.Verdict.OK
+            ],
+            'Supported-Phases': [
+                enums.Phase.FINISHED
+            ],
+            'Supported-Languages': [
+                enums.Language.MSCL,
+                enums.Language.MSCL17,
+                enums.Language.CLANG17_D,
+                enums.Language.GPP11,
+                enums.Language.GPP14,
+                enums.Language.GPP17,
+                enums.Language.GPP17_64,
+            ],
+            "Tag-Caps": {
+                enums.Tag.SORT: 1000,
+                enums.Tag.MATH: 1000,
+                enums.Tag.GAMES: 1000,
+                enums.Tag.GREEDY: 1000,
+                enums.Tag.GRAPHS: 1000,
+                enums.Tag.DYNAMIC: 1000,
+                enums.Tag.BIN_SEARCH: 1000,
+                enums.Tag.INTERACTIVE: 1000,
+                enums.Tag.CONSTRUCTIVE: 1000,
+                enums.Tag.COMBINATORICS: 1000,
+                enums.Tag.DATA_STRUCTURES: 1000,
+            },
         }
 
         # Serialize default data if doesn't exist

@@ -85,7 +85,10 @@ class Contest:
 
                 entry['contestId'] = self.id
                 submission = Submission(entry, self)
-                if submission.verdict in self.config.data['Supported-Verdicts']:
+                if submission.verdict in self.config.data['Supported-Verdicts'] and (
+                        len(self.config.data['Supported-Languages']) == 0 or
+                        submission.language in self.config.data['Supported-Languages']
+                ):
                     self.submissions[submission.id] = submission
                     if submission.id not in self.meta['Submissions']:
                         self.meta['Submissions'][submission.id] = enums.DownloadStatus.NOT_STARTED.value

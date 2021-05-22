@@ -6,6 +6,38 @@ class AutoName(Enum):
         return name
 
 
+class ProgrammingLanguageEnum(Enum):
+    def _generate_next_value_(name, start, count, last_values):
+        __language_map = {
+            'MSCL':      'MS C++',
+            'MSCL17':    'MS C++ 2017',
+            'CLANG17_D': 'Clang++17 Diagnostics',
+            'GPP11':     'GNU C++11',
+            'GPP14':     'GNU C++14',
+            'GPP17':     'GNU C++17',
+            'GPP17_64':  'GNU C++17 (64)',
+        }
+        return __language_map[name]
+
+
+class TagEnum(Enum):
+    def _generate_next_value_(name, start, count, last_values):
+        __tag_map = {
+            'SORT':            'sortings',
+            'MATH':            'math',
+            'GAMES':           'games',
+            'GREEDY':          'greedy',
+            'GRAPHS':          'graphs',
+            'DYNAMIC':         'dp',
+            'BIN_SEARCH':      'binary search',
+            'INTERACTIVE':     'interactive',
+            'CONSTRUCTIVE':    'constructive algorithms',
+            'COMBINATORICS':   'combinatorics',
+            'DATA_STRUCTURES': 'data structures',
+        }
+        return __tag_map[name]
+
+
 @unique
 class DownloadStatus(AutoName):
     NOT_STARTED = auto()
@@ -101,3 +133,29 @@ class Type(AutoName):
     CF = auto()
     IOI = auto()
     ICPC = auto()
+
+
+@unique
+class Language(ProgrammingLanguageEnum):
+    MSCL = auto()
+    MSCL17 = auto()
+    CLANG17_D = auto()
+    GPP11 = auto()
+    GPP14 = auto()
+    GPP17 = auto()
+    GPP17_64 = auto()
+
+
+@unique
+class Tag(TagEnum):
+    SORT = auto()
+    MATH = auto()
+    GAMES = auto()
+    GREEDY = auto()
+    GRAPHS = auto()
+    DYNAMIC = auto()
+    BIN_SEARCH = auto()
+    INTERACTIVE = auto()
+    CONSTRUCTIVE = auto()
+    COMBINATORICS = auto()
+    DATA_STRUCTURES = auto()
