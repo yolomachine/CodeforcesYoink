@@ -1,46 +1,87 @@
-import json
 import time
 import requests
-from functools import cached_property
+from tqdm import tqdm
+from functools import cached_property, lru_cache
 from yoink.contest import Contest
-from yoink.utils import Singleton, Config
+from yoink.utils import Singleton, Config, CustomDefaultDict, OPE
 
 
 class Yanker(metaclass=Singleton):
-    def __init__(self):
-        self.config = Config()
-        self.contests = {}
+    def __init__(self, *args, **kwargs):
+        self.contests = CustomDefaultDict(factory=lambda key: self.__request_raw_contests(id=key))
+        if kwargs.get('download', False):
+            self.__ensure_data()
 
-    def download_contests(self):
-        for entry in self.requested_contest_list:
-            contest = Contest(entry)
-            self.contests[contest.id] = contest
-            contest.download_submissions_info()
-
-    def download_source_codes(self):
-        for contest in self.contests.values():
-            try:
-                contest.download_source_codes()
-            finally:
-                continue
-
-    def save(self):
-        with open(self.config.contests_meta_path, 'w') as fp:
-            json.dump({'Contests': list(self.contests.keys())}, fp)
-
-    def is_entry_eligible(self, entry):
-        return entry['phase'] in self.config.data['Supported-Phases'] and \
-               entry['type'] in self.config.data['Supported-Contest-Formats']
+    def __ensure_data(self):
+        progress_bar = tqdm(total=len(self.__eligible_raw_contests),
+                            position=1,
+                            leave=True,
+                            desc='Contests',
+                            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]')
+        for raw_contest in self.__eligible_raw_contests:
+            progress_bar.display()
+            contest_id = raw_contest['id']
+            contest_path = Contest.get_path(contest_id, meta=True)
+            self.contests[contest_id] = \
+                Contest.deserialize(path=contest_path) if OPE(contest_path) else Contest(download=True,
+                                                                                         info=raw_contest)
+            progress_bar.update()
+        progress_bar.close()
 
     @staticmethod
-    def chunks(lst, n):
-        """Yield successive n-sized chunks from lst."""
-        for i in range(0, len(lst), n):
-            yield lst[i:i + n]
+    def __is_eligible(raw_contest):
+        try:
+            return raw_contest['phase'] in Config()['Supported-Phases'] and \
+               raw_contest['type'] in Config()['Supported-Contest-Formats']
+        except:
+            return False
 
-    # dict
     @cached_property
-    def requested_contest_list(self):
+    def __eligible_raw_contests(self):
+        result = self.__filter_raw_contests(self.__request_raw_contests(),
+                                            apply_config_constraints=True)
+
+        self.__print_eligible_contests(contests=result)
+        if len(result) > 0:
+            time.sleep(Config()['Request-Delay'])
+
+        return result
+
+    def __print_eligible_contests(self, contests=None):
+        if not contests:
+            contests = self.__eligible_raw_contests
+
+        print(f'\n======== {len(contests)} eligible contests ========')
+        if len(contests) > 0:
+            print('\n*', '\n* '.join(map(lambda x: f'[{x["id"]}] {x["name"]}', contests)), '\n')
+
+    def __filter_raw_contests(self, *args, **kwargs):
+        data = args[0]
+        if not isinstance(data, list):
+            data = list(data)
+
+        result = list(filter(lambda x: Yanker.__is_eligible(x), data))
+
+        if kwargs.get('apply_config_constraints', False):
+            max_contests = Config()['Max-Contests']
+            initial_contest_id = Config()['Initial-Contest-Id']
+            initial_contest_index = 0
+            for i, v in enumerate(result):
+                if v['id'] == initial_contest_id:
+                    initial_contest_index = i
+                    break
+            if max_contests >= 0:
+                start = min(initial_contest_index, len(result))
+                end = min(start + max_contests, len(result))
+                result = result[start:end]
+
+        return result
+
+    def __request_raw_contests(self, **kwargs):
+        contest_id = kwargs.get('id', None)
+        if contest_id:
+            return next(v for i, v in enumerate(self.__request_raw_contests()) if v['id'] == contest_id)
+
         r = requests.get('https://codeforces.com/api/contest.list')
 
         try:
@@ -49,11 +90,4 @@ class Yanker(metaclass=Singleton):
             print(r.status_code)
             exit()
 
-        result = list(filter(lambda x: self.is_entry_eligible(x), r.json()['result']))
-        if self.config.data['Max-Contests'] >= 0:
-            result = result[:min(self.config.data['Max-Contests'], len(result))]
-        print(f'\n======== {len(result)} contests ========')
-        if len(result) > 0:
-            print('\n*', '\n* '.join(map(lambda x: f'[{x["id"]}] {x["name"]}', result)), '\n')
-            time.sleep(self.config.data['Request-Delay'])
-        return result
+        return r.json()['result']

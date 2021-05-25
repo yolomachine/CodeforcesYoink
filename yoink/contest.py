@@ -1,15 +1,10 @@
 import json
-import os
 import time
 import requests
-import yoink.enums as enums
-from functools import cached_property
+from tqdm import tqdm
+from functools import cached_property, lru_cache
 from yoink.submission import Submission
-from yoink.utils import cc2sc, Config
-
-_ope = os.path.exists
-_opj = os.path.join
-_omd = os.mkdir
+from yoink.utils import cc2sc, Config, OPE, OMD
 
 
 class Contest:
@@ -25,13 +20,96 @@ class Contest:
         'season',
     ]
 
-    def __init__(self, info):
-        self.config = Config()
-        self.meta = {
-            'Submissions': {}
-        }
-        self.submissions = {}
-        self.id = str(info['id'])
+    @staticmethod
+    def serialize(**kwargs):
+        instance = kwargs.get('instance', None)
+        if not instance:
+            return {}
+
+        submissions = {}
+        for submission_instance in instance.submissions.values():
+            submissions[submission_instance.id] = Submission.serialize(instance=submission_instance)
+
+        # TODO: don't serialize empty fields.
+        return \
+            {
+                'Id': instance.id,
+                'Name': instance.name,
+                'Type': instance.type,
+                'Phase': instance.phase,
+                'Frozen': instance.frozen,
+                'Duration': instance.duration_seconds,
+                'Start-Time': instance.start_time_seconds,
+                'Relative-Time': instance.relative_time_seconds,
+                'Submissions': submissions,
+            }
+
+    @staticmethod
+    def deserialize(**kwargs):
+        string = kwargs.get('string', None)
+        path = kwargs.get('path', None)
+        if string:
+            data = json.loads(string)
+        elif path:
+            with open(path, 'r') as fp:
+                data = json.load(fp)
+        else:
+            return None
+
+        submissions = {}
+        for serialized_submission in data['Submissions'].values():
+            submission = Submission.deserialize(string=json.dumps(serialized_submission))
+            submissions[submission.id] = submission
+
+        # TODO: check if key is present before accessing it.
+        return Contest(submissions=submissions,
+                       info={
+                            'id': data['Id'],
+                            'name': data['Name'],
+                            'type': data['Type'],
+                            'phase': data['Phase'],
+                            'frozen': data['Frozen'] == 'True',
+                            'durationSeconds': data['Duration'],
+                            'startTimeSeconds': data['Start-Time'],
+                            'relativeTimeSeconds': data['Relative-Time'],
+                       })
+
+    @staticmethod
+    def get_path(contest_id, **kwargs):
+        if not contest_id:
+            return None
+
+        path = [str(contest_id)]
+        if kwargs.get('meta', False):
+            path = [*path, 'meta.json']
+        return Config().combine_path(*path)
+
+    def __init__(self, *args, **kwargs):
+        self.id = int()
+        self.name = str()
+        self.type = str()
+        self.phase = str()
+        self.frozen = False
+        self.duration_seconds = int()
+        self.start_time_seconds = int()
+        self.relative_time_seconds = int()
+        self.submissions = kwargs.get('submissions', {})
+        if kwargs.get('info', None):
+            self.__sync(kwargs['info'])
+        if kwargs.get('download', False):
+            self.__download_data()
+
+    def download_source_code(self):
+        for submission in tqdm(self.submissions,
+                               total=len(self.submissions),
+                               position=0,
+                               leave=True,
+                               desc='Contests'):
+            self.submissions[submission.id].download_status = submission.download_source_code()
+            self.__dump()
+
+    def __sync(self, info):
+        self.id = info['id']
         self.name = info['name']
         self.type = info['type']
         self.phase = info['phase']
@@ -39,112 +117,97 @@ class Contest:
         self.duration_seconds = info['durationSeconds']
         self.start_time_seconds = info['startTimeSeconds']
         self.relative_time_seconds = info['relativeTimeSeconds']
-
         for key in Contest.__optional_fields:
             if key in info:
                 self.__setattr__(cc2sc(key), info[key])
 
-        # Create working directory if doesn't exist
-        if not _ope(self.path):
-            _omd(self.path)
+    def __ensure_directories(self):
+        path = Contest.get_path(self.id)
+        if not OPE(path):
+            OMD(path)
 
-        if not _ope(_opj(self.path, 'submissions')):
-            _omd(_opj(self.path, 'submissions'))
-
-        # Deserialize data from JSON
-        if _ope(self.meta_path):
-            with open(self.meta_path, 'r') as fp:
-                self.meta = json.load(fp)
-
-    def download_submissions_info(self):
-        if self.phase != enums.Phase.FINISHED.value:
-            print(f'# [Contest][{self.id}]: Not finished')
-            return
-        print(f'# [Contest][{self.id}]: Getting raw submissions\' info')
-
-        cap = self.config.data['Max-Submissions']
-        pointer = 1
-        batch = 25000
-        while True:
-            submissions = self.request_submissions(pointer, batch)
-            if len(submissions) > 0:
-                print(f'Received {len(submissions)} submissions')
-            counter = 0
-            for entry in submissions:
-                # TODO:
-                # Refactor
-                submission_id = str(entry['id'])
-                if submission_id in self.meta['Submissions']:
-                    serialized_submission_path = self.get_submission_path(submission_id)
-                    if _ope(serialized_submission_path) and \
-                            self.meta['Submissions'][submission_id] == enums.DownloadStatus.FINISHED.value:
-                        submission = Submission.deserialize(serialized_submission_path)
-                        self.submissions[submission.id] = submission
-                        counter += 1
-                        continue
-
-                entry['contestId'] = self.id
-                submission = Submission(entry, self)
-                if submission.verdict in self.config.data['Supported-Verdicts'] and (
-                        len(self.config.data['Supported-Languages']) == 0 or
-                        submission.language in self.config.data['Supported-Languages']
-                ):
-                    self.submissions[submission.id] = submission
-                    if submission.id not in self.meta['Submissions']:
-                        self.meta['Submissions'][submission.id] = enums.DownloadStatus.NOT_STARTED.value
-                    counter += 1
-                    cap -= 1
-                    if cap == 0:
-                        break
-            print(f'Approved {counter} submissions')
-            self.save_meta()
-
-            if len(submissions) < batch or cap == 0:
-                break
-            pointer += batch
-
-    def download_source_codes(self):
-        if self.phase != enums.Phase.FINISHED.value:
-            print(f'# [Contest][{self.id}]: Not finished')
-            return
+    def __download_data(self):
         if len(self.submissions) == 0:
-            print(f'# [Contest][{self.id}]: No submissions\' info stored, download it first')
-            return
-        for submission in self.submissions.values():
-            if self.meta['Submissions'][submission.id] != enums.DownloadStatus.FINISHED.value or \
-                    not _ope(self.get_submission_path(submission.id)):
-                if submission.request_code():
-                    submission.save()
-                self.save_meta()
+            for raw_submission in self.__eligible_raw_submissions:
+                submission_id = raw_submission['id']
+                self.submissions[submission_id] = Submission(download=False,
+                                                             contest_id=self.id,
+                                                             info=raw_submission)
+            self.__dump()
 
-    def save_meta(self):
-        with open(self.meta_path, 'w') as fp:
-            json.dump(self.meta, fp, indent=4)
+    def __dump(self):
+        self.__ensure_directories()
+        with open(Contest.get_path(self.id, meta=True), 'w') as fp:
+            json.dump(Contest.serialize(instance=self), fp, indent=4)
 
-    # Path to the contest directory
+    @staticmethod
+    def __is_eligible(raw_submission):
+        try:
+            return \
+                raw_submission['verdict'] in Config()['Supported-Verdicts'] \
+                and (raw_submission['programmingLanguage'] in Config()['Supported-Languages'] or
+                     len(Config()['Supported-Languages']) == 0)
+        except:
+            return False
+
     @cached_property
-    def path(self):
-        return self.config.combine_path(self.id)
+    def __eligible_raw_submissions(self):
+        result = []
+        current_index = 1
+        batch_size = 20000
+        max_submissions = Config()['Max-Submissions']
+        progress_bar = None
+        if max_submissions > 0:
+            progress_bar = tqdm(total=max_submissions,
+                                position=0,
+                                leave=True,
+                                desc=f'\t[{self.id}][Not found] Downloading submissions',
+                                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]')
+        while len(result) < max_submissions or max_submissions == -1:
+            raw_submissions = self.__request_raw_submissions(self.id, current_index, batch_size)
+            if len(raw_submissions) == 0:
+                break
 
-    # Path to the stored meta data
-    @cached_property
-    def meta_path(self):
-        return _opj(self.path, 'meta.json')
+            raw_submissions = self.__filter_raw_submissions(raw_submissions,
+                                                            apply_config_constraints=True)
+            for submission in raw_submissions:
+                result.append(submission)
+                progress_bar.update()
 
-    def get_submission_path(self, submission_id):
-        return _opj(self.path, 'submissions', f'{submission_id}.json')
+            current_index += batch_size
 
-    def request_submissions(self, id_from, count):
-        print(f'#? [Contest][{self.id}]: Requesting {id_from}-{id_from + count - 1} submissions')
-        payload = {'contestId': int(self.id), 'from': id_from, 'count': count}
-        r = requests.get('https://codeforces.com/api/contest.status', params=payload)
+        if progress_bar:
+            progress_bar.update(min(0, max_submissions - progress_bar.last_print_n))
+            progress_bar.close()
+        return result
+
+    def __filter_raw_submissions(self, *args, **kwargs):
+        data = args[0]
+        if not isinstance(data, list):
+            data = list(data)
+
+        result = list(filter(lambda x: Contest.__is_eligible(x), data))
+
+        if kwargs.get('apply_config_constraints', False):
+            max_submissions = Config()['Max-Submissions']
+            if max_submissions >= 0:
+                result = result[:min(max_submissions, len(result))]
+
+        return result
+
+    @lru_cache
+    def __request_raw_submissions(self, contest_id, start, count):
+        payload = {'contestId': contest_id, 'from': start, 'count': count}
+        r = requests.get('https://codeforces.com/api/contest.status',
+                         # headers=Config()['GET-Headers'],
+                         # allow_redirects=False,
+                         params=payload)
 
         try:
             r.raise_for_status()
         except requests.HTTPError:
-            print(f'#! [{r.status_code}] REQUEST ERROR')
-            time.sleep(self.config.data['Request-Delay'])
-            return
+            time.sleep(Config()['Request-Delay'])
+            return []
 
-        time.sleep(self.config.data['Request-Delay'])
+        time.sleep(Config()['Request-Delay'])
         return r.json()['result']
