@@ -4,6 +4,7 @@ import re
 import time
 import requests
 import yoink.enums as enums
+from typing import Optional, Generator, Any, Union
 from bs4 import BeautifulSoup
 
 OPE = os.path.exists
@@ -12,13 +13,22 @@ OMD = os.mkdir
 
 __cc2sc_splitter = re.compile(r'(?<!^)(?=[A-Z])')
 __timeout_counter = 0
+__language_map = {
+    'c++': 'cpp',
+    'clion': 'cpp',
+    'java': 'java',
+    'c#': 'cs',
+    'kotlin': 'kotlin',
+    'javascript': 'js',
+    'typescript': 'ts',
+}
 
 
-def cc2sc(key):
+def cc2sc(key: str) -> str:
     return __cc2sc_splitter.sub('_', key).lower()
 
 
-def dedigitize_with_underscore_no_whitespaces_upper(tag):
+def dedigitize_with_underscore_no_whitespaces_upper(tag: str) -> str:
     conversion_table = {
         '0': 'zero',
         '1': 'one',
@@ -36,25 +46,34 @@ def dedigitize_with_underscore_no_whitespaces_upper(tag):
     return tag.upper()
 
 
-def chunkenize(lst, n):
+def chunkenize(lst: list, n: int) -> Generator[list, Any, None]:
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
 
-def reset_timeout_counter():
+def shorten_programming_language(language: str) -> str:
+    global __language_map
+    buffer = language.replace(' ', '').lower()
+    for key in __language_map.keys():
+        if key in buffer:
+            return __language_map[key]
+    return language
+
+
+def reset_timeout_counter() -> None:
     global __timeout_counter
     __timeout_counter = 0
 
 
-def issue_timeout():
+def issue_timeout() -> None:
     global __timeout_counter
     __timeout_counter += 1
     if __timeout_counter >= 5:
         time.sleep(Config()['Request-Timeout'])
-        __timeout_counter = 0
+        reset_timeout_counter()
 
 
-def check_for_redirecting(response):
+def check_for_redirecting(response: requests.Response) -> bool:
     while 'redirecting' in response.text.lower():
         try:
             m = re.search(r'document\.location\.href=\"(.*)\"', response.text)
@@ -68,7 +87,7 @@ def check_for_redirecting(response):
     return False
 
 
-def check_for_status(response):
+def check_for_status(response: requests.Response) -> bool:
     try:
         response.raise_for_status()
     except requests.HTTPError:
@@ -77,7 +96,7 @@ def check_for_status(response):
     return False
 
 
-def get_html_content(response, **kwargs):
+def get_html_content(response: requests.Response, **kwargs) -> Optional[str]:
     html_id = kwargs.get('id', None)
     if not html_id:
         return None
@@ -107,6 +126,24 @@ class Singleton(type):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
+
+
+class TqdmControl(metaclass=Singleton):
+    def __init__(self):
+        self.indent = 0
+        self.pos = 0
+
+    def inc_indent(self):
+        self.indent += 1
+
+    def dec_indent(self):
+        self.indent -= 1
+
+    def inc_pos(self):
+        self.pos += 1
+
+    def dec_pos(self):
+        self.pos -= 1
 
 
 class Config(metaclass=Singleton):
@@ -174,11 +211,11 @@ class Config(metaclass=Singleton):
     def __setitem__(self, key, value):
         self.__data[key] = value
 
-    def __ensure_directories(self):
+    def __ensure_directories(self) -> None:
         if not OPE(self.working_dir_path):
             OMD(self.working_dir_path)
 
-    def __ensure_data(self):
+    def __ensure_data(self) -> None:
         if not OPE(Config.__built_in_path):
             with open(Config.__built_in_path, 'w') as fp:
                 json.dump(self.__data, fp, indent=4)
@@ -188,10 +225,10 @@ class Config(metaclass=Singleton):
                 for key in data:
                     self[key] = data[key]
 
-    def combine_path(self, *path):
+    def combine_path(self, *path) -> Union[bytes, str]:
         path = [str(i) if i else str() for i in path]
         return OPJ(self.working_dir_path, *path)
 
     @property
-    def working_dir_path(self):
+    def working_dir_path(self) -> Union[bytes, str]:
         return OPJ(self['Path-Prefix'], self['Yoink-Path'])

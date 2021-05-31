@@ -1,17 +1,20 @@
+from __future__ import annotations
+
 import json
 import time
 import requests
 import yoink.enums as enums
-from yoink.utils import Config, OPE, OMD
+from typing import Optional
+from yoink.utils import Config, OPE, OMD, shorten_programming_language
 from yoink.utils import reset_timeout_counter, check_for_redirecting, check_for_status, get_html_content
 
 
 class Submission:
     @staticmethod
-    def serialize(**kwargs):
+    def serialize(**kwargs) -> Optional[dict]:
         instance = kwargs.get('instance', None)
         if not instance:
-            return {}
+            return None
 
         # TODO: don't serialize empty fields.
         return \
@@ -28,12 +31,12 @@ class Submission:
             }
 
     @staticmethod
-    def deserialize(**kwargs):
+    def deserialize(**kwargs) -> Optional[Submission]:
         string = kwargs.get('string', None)
         path = kwargs.get('path', None)
         if string:
             data = json.loads(string)
-        elif path:
+        elif path and OPE(path):
             with open(path, 'r') as fp:
                 data = json.load(fp)
         else:
@@ -53,10 +56,10 @@ class Submission:
                           })
 
     @staticmethod
-    def get_code_path(submission_id, contest_id, language):
-        path = [contest_id, language, submission_id]
+    def get_code_path(submission_id: int, contest_id: int, language: str) -> Optional[str]:
+        path = [contest_id, shorten_programming_language(language), submission_id]
         if not any(path):
-            return str()
+            return None
         return Config().combine_path(*path)
 
     def __init__(self, *args, **kwargs):
@@ -72,10 +75,8 @@ class Submission:
                                           enums.DownloadStatus.NOT_STARTED.value)
         if kwargs.get('info', None):
             self.__sync(kwargs['info'])
-        if kwargs.get('download', False):
-            self.download_source_code()
 
-    def __sync(self, info):
+    def __sync(self, info) -> None:
         self.id = info['id']
         self.time_consumed_millis = info['timeConsumedMillis']
         self.memory_consumed_bytes = info['memoryConsumedBytes']
@@ -84,12 +85,12 @@ class Submission:
         self.language = info['programmingLanguage']
         self.verdict = info.get('verdict', enums.Verdict.FAILED.value)
 
-    def __ensure_directories(self):
+    def __ensure_directories(self) -> None:
         path = Submission.get_code_path(self.id, self.contest_id, self.language)
-        if not OPE(path):
+        if path and not OPE(path):
             OMD(path)
 
-    def download_source_code(self):
+    def download_source_code(self) -> enums.DownloadStatus:
         r = requests.get(
             f'https://codeforces.com/contest/{self.contest_id}/submission/{self.id}',
             headers=Config()['GET-Headers'],
@@ -98,24 +99,28 @@ class Submission:
         time.sleep(Config()['Request-Delay'])
 
         if check_for_redirecting(r):
-            self.download_status = enums.DownloadStatus.FAILED.value
-            return self.download_status
+            status = enums.DownloadStatus.FAILED
+            self.download_status = status.value
+            return status
 
         if check_for_status(r):
-            self.download_status = enums.DownloadStatus.FAILED.value
-            return self.download_status
+            status = enums.DownloadStatus.FAILED
+            self.download_status = status.value
+            return status
 
         text = get_html_content(r, id='program-source-text')
         if not text:
-            self.download_status = enums.DownloadStatus.FAILED.value
-            return self.download_status
+            status = enums.DownloadStatus.FAILED
+            self.download_status = status.value
+            return status
 
         reset_timeout_counter()
         self.__dump_code(text)
-        self.download_status = enums.DownloadStatus.FINISHED.value
-        return self.download_status
+        status = enums.DownloadStatus.FINISHED
+        self.download_status = status.value
+        return status
 
-    def __dump_code(self, text):
+    def __dump_code(self, text: str) -> None:
         self.__ensure_directories()
         data = \
             {
@@ -124,5 +129,7 @@ class Submission:
                 'Source-Code': text
             }
 
-        with open(Submission.get_code_path(self.id, self.contest_id, self.language), 'w') as fp:
-            json.dump(data, fp)
+        path = Submission.get_code_path(self.id, self.contest_id, self.language)
+        if path:
+            with open(path, 'w') as fp:
+                json.dump(data, fp)

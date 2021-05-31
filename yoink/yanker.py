@@ -1,51 +1,46 @@
 import time
 import requests
 from tqdm import tqdm
-from functools import cached_property, lru_cache
+from typing import List
+from functools import cached_property
 from yoink.contest import Contest
-from yoink.utils import Singleton, Config, CustomDefaultDict, OPE
+from yoink.utils import Singleton, Config, CustomDefaultDict, TqdmControl
 
 
 class Yanker(metaclass=Singleton):
     def __init__(self, *args, **kwargs):
-        self.contests = CustomDefaultDict(factory=lambda key: self.__request_raw_contests(id=key))
+        self.contests = CustomDefaultDict(factory=lambda key: self.__request_raw_contests(id=key)[0])
         if kwargs.get('download', False):
             self.__ensure_data()
 
-    def __ensure_data(self):
+    def __ensure_data(self) -> None:
         progress_bar = tqdm(total=len(self.__eligible_raw_contests),
-                            position=1,
+                            position=TqdmControl().pos,
                             leave=True,
-                            desc='Contests',
+                            desc=f'Contests',
                             bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]')
         for raw_contest in self.__eligible_raw_contests:
-            progress_bar.display()
             contest_id = raw_contest['id']
             contest_path = Contest.get_path(contest_id, meta=True)
-            self.contests[contest_id] = \
-                Contest.deserialize(path=contest_path) if OPE(contest_path) else Contest(download=True,
-                                                                                         info=raw_contest)
+            contest_instance = Contest.deserialize(path=contest_path)
+            if not contest_instance:
+                TqdmControl().inc_indent()
+                TqdmControl().inc_pos()
+                Contest(download=True, info=raw_contest)
+                TqdmControl().dec_pos()
+                TqdmControl().dec_indent()
+            self.contests[contest_id] = contest_instance
             progress_bar.update()
+
         progress_bar.close()
 
     @staticmethod
-    def __is_eligible(raw_contest):
+    def __is_eligible(raw_contest) -> bool:
         try:
             return raw_contest['phase'] in Config()['Supported-Phases'] and \
-               raw_contest['type'] in Config()['Supported-Contest-Formats']
+                   raw_contest['type'] in Config()['Supported-Contest-Formats']
         except:
             return False
-
-    @cached_property
-    def __eligible_raw_contests(self):
-        result = self.__filter_raw_contests(self.__request_raw_contests(),
-                                            apply_config_constraints=True)
-
-        self.__print_eligible_contests(contests=result)
-        if len(result) > 0:
-            time.sleep(Config()['Request-Delay'])
-
-        return result
 
     def __print_eligible_contests(self, contests=None):
         if not contests:
@@ -55,7 +50,18 @@ class Yanker(metaclass=Singleton):
         if len(contests) > 0:
             print('\n*', '\n* '.join(map(lambda x: f'[{x["id"]}] {x["name"]}', contests)), '\n')
 
-    def __filter_raw_contests(self, *args, **kwargs):
+    @cached_property
+    def __eligible_raw_contests(self) -> List[dict]:
+        result = self.__filter_raw_contests(self.__request_raw_contests(),
+                                            apply_config_constraints=True)
+
+        self.__print_eligible_contests(contests=result)
+        if len(result) > 0:
+            time.sleep(Config()['Request-Delay'])
+
+        return result
+
+    def __filter_raw_contests(self, *args, **kwargs) -> List[dict]:
         data = args[0]
         if not isinstance(data, list):
             data = list(data)
@@ -77,10 +83,10 @@ class Yanker(metaclass=Singleton):
 
         return result
 
-    def __request_raw_contests(self, **kwargs):
+    def __request_raw_contests(self, **kwargs) -> List[dict]:
         contest_id = kwargs.get('id', None)
         if contest_id:
-            return next(v for i, v in enumerate(self.__request_raw_contests()) if v['id'] == contest_id)
+            return [next(v for i, v in enumerate(self.__request_raw_contests()) if v['id'] == contest_id)]
 
         r = requests.get('https://codeforces.com/api/contest.list')
 

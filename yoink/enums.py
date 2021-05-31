@@ -2,12 +2,12 @@ from enum import Enum, unique, auto
 
 
 class AutoName(Enum):
-    def _generate_next_value_(name, start, count, last_values):
-        return name
+    def _generate_next_value_(name, start, count, last_values) -> str:
+        return str(name)
 
 
 class ProgrammingLanguageEnum(Enum):
-    def _generate_next_value_(name, start, count, last_values):
+    def _generate_next_value_(name, start, count, last_values) -> str:
         __language_map = {
             'MSCL':      'MS C++',
             'MSCL17':    'MS C++ 2017',
@@ -17,11 +17,11 @@ class ProgrammingLanguageEnum(Enum):
             'GPP17':     'GNU C++17',
             'GPP17_64':  'GNU C++17 (64)',
         }
-        return __language_map[name]
+        return __language_map[str(name)]
 
 
 class TagEnum(Enum):
-    def _generate_next_value_(name, start, count, last_values):
+    def _generate_next_value_(name, start, count, last_values) -> str:
         __tag_map = {
             'SORT':            'sortings',
             'MATH':            'math',
@@ -35,7 +35,7 @@ class TagEnum(Enum):
             'COMBINATORICS':   'combinatorics',
             'DATA_STRUCTURES': 'data structures',
         }
-        return __tag_map[name]
+        return __tag_map[str(name)]
 
 
 @unique
