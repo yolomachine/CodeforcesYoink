@@ -26,7 +26,7 @@ class Yanker(metaclass=Singleton):
             if not contest_instance:
                 TqdmControl().inc_indent()
                 TqdmControl().inc_pos()
-                Contest(download=True, info=raw_contest)
+                contest_instance = Contest(download=True, info=raw_contest)
                 TqdmControl().dec_pos()
                 TqdmControl().dec_indent()
             self.contests[contest_id] = contest_instance

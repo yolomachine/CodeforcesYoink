@@ -86,7 +86,7 @@ class Submission:
         self.verdict = info.get('verdict', enums.Verdict.FAILED.value)
 
     def __ensure_directories(self) -> None:
-        path = Submission.get_code_path(self.id, self.contest_id, self.language)
+        path = Config().combine_path(self.contest_id, shorten_programming_language(self.language))
         if path and not OPE(path):
             OMD(path)
 
@@ -131,5 +131,5 @@ class Submission:
 
         path = Submission.get_code_path(self.id, self.contest_id, self.language)
         if path:
-            with open(path, 'w') as fp:
+            with open(path, 'w+') as fp:
                 json.dump(data, fp)

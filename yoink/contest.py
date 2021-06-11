@@ -6,6 +6,7 @@ import requests
 from tqdm import tqdm
 from typing import Optional, List
 from functools import cached_property, lru_cache
+from yoink import enums
 from yoink.submission import Submission
 from yoink.utils import cc2sc, Config, OPE, OMD, TqdmControl
 
@@ -105,14 +106,17 @@ class Contest:
         if kwargs.get('download', False):
             self.__download_data()
 
-    def download_source_code(self) -> None:
-        for submission in tqdm(self.submissions,
-                               total=len(self.submissions),
+    def download_source_code(self, amount=-1) -> None:
+        size = len(self.submissions) if amount == -1 else amount
+        submissions = list(self.submissions.values())[:size]
+        for submission in tqdm(submissions,
+                               total=len(submissions),
                                position=0,
                                leave=True,
-                               desc='Contests'):
-            self.submissions[submission.id].download_status = submission.download_source_code().value
-            self.__dump()
+                               desc=f'[{self.id}] Downloading code'):
+            if submission.download_status != enums.DownloadStatus.FINISHED.value:
+                self.submissions[submission.id].download_status = submission.download_source_code().value
+                self.__dump()
 
     def __sync(self, info) -> None:
         self.id = info['id']
@@ -146,7 +150,7 @@ class Contest:
         if string:
             path = Contest.get_path(self.id, meta=True)
             if path:
-                with open(path, 'w') as fp:
+                with open(path, 'w+') as fp:
                     json.dump(string, fp, indent=4)
 
     @staticmethod
