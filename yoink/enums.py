@@ -16,6 +16,12 @@ class ProgrammingLanguageEnum(Enum):
             'GPP14':     'GNU C++14',
             'GPP17':     'GNU C++17',
             'GPP17_64':  'GNU C++17 (64)',
+            'Java8':     'Java 8',
+            'Java11':    'Java 11',
+            'Python2':   'Python 2',
+            'Python3':   'Python 3',
+            'PyPy2':     'PyPy 2',
+            'PyPy3':     'PyPy 3',
         }
         return __language_map[str(name)]
 
@@ -144,6 +150,12 @@ class Language(ProgrammingLanguageEnum):
     GPP14 = auto()
     GPP17 = auto()
     GPP17_64 = auto()
+    Java8 = auto()
+    Java11 = auto()
+    Python2 = auto()
+    Python3 = auto()
+    PyPy2 = auto()
+    PyPy3 = auto()
 
 
 @unique

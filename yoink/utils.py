@@ -15,12 +15,10 @@ __cc2sc_splitter = re.compile(r'(?<!^)(?=[A-Z])')
 __timeout_counter = 0
 __language_map = {
     'c++': 'cpp',
-    'clion': 'cpp',
+    'clang': 'cpp',
     'java': 'java',
     'c#': 'cs',
-    'kotlin': 'kotlin',
-    'javascript': 'js',
-    'typescript': 'ts',
+    'py': 'py',
 }
 
 

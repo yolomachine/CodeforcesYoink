@@ -60,7 +60,7 @@ class Submission:
         path = [contest_id, shorten_programming_language(language), submission_id]
         if not any(path):
             return None
-        return Config().combine_path(*path)
+        return f'{Config().combine_path(*path)}.json'
 
     def __init__(self, *args, **kwargs):
         self.id = int()
