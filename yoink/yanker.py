@@ -24,7 +24,7 @@ class Yanker(metaclass=Singleton):
             contest_path = Contest.get_path(contest_id, meta=True)
             TqdmControl().inc_indent()
             TqdmControl().inc_pos()
-            contest_instance = Contest.deserialize(download=True, path=contest_path)
+            contest_instance = Contest.deserialize(download=False, path=contest_path)
             if not contest_instance:
                 contest_instance = Contest(download=True, info=raw_contest)
             TqdmControl().dec_pos()

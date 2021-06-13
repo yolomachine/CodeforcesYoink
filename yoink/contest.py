@@ -117,7 +117,7 @@ class Contest:
                                desc=f'[{self.id}] Validating code'):
 
             if submission.download_status == enums.DownloadStatus.FINISHED.value:
-                if submission.try_read_code_dump(fixup=True):
+                if submission.validate_code(fixup=True):
                     continue
 
             if submission.download_status != enums.DownloadStatus.FINISHED.value:

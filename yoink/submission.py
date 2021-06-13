@@ -56,11 +56,25 @@ class Submission:
                           })
 
     @staticmethod
-    def get_code_path(submission_id: int, contest_id: int, language: str) -> Optional[str]:
+    def get_code_path_extensionless(submission_id: int, contest_id: int, language: str) -> Optional[str]:
         path = [contest_id, shorten_programming_language(language), submission_id]
         if not any(path):
             return None
-        return f'{Config().combine_path(*path)}.json'
+        return Config().combine_path(*path)
+
+    @staticmethod
+    def get_dumped_code_meta_path(submission_id: int, contest_id: int, language: str) -> Optional[str]:
+        path = Submission.get_code_path_extensionless(submission_id, contest_id, language)
+        if not path:
+            return None
+        return f'{path}.json'
+
+    @staticmethod
+    def get_dumped_code_path(submission_id: int, contest_id: int, language: str) -> Optional[str]:
+        path = Submission.get_code_path_extensionless(submission_id, contest_id, language)
+        if not path:
+            return None
+        return f'{path}.{shorten_programming_language(language)}'
 
     def __init__(self, *args, **kwargs):
         self.id = int()
@@ -120,50 +134,59 @@ class Submission:
         self.download_status = status.value
         return status
 
-    def try_read_code_dump(self, fixup=False) -> Optional[dict]:
-        path = self.get_code_path(self.id, self.contest_id, self.language)
+    def validate_code(self, fixup=False) -> bool:
+        data_path = self.get_dumped_code_path(self.id, self.contest_id, self.language)
+        meta_path = self.get_dumped_code_meta_path(self.id, self.contest_id, self.language)
 
-        if not OPE(path) and OPE(OPS(path)[0]):
-            ORE(OPS(path)[0], path)
+        if OPE(OPS(meta_path)[0] + '.meta'):
+            ORE(OPS(meta_path)[0] + '.meta', meta_path)
 
-        data = None
+        if OPE(data_path):
+            with open(data_path, 'r', encoding='utf-8') as fp:
+                data = fp.read()
+            if data is None or len(data) == 0 and fixup:
+                ORM(data_path)
+                return False
 
-        if OPE(path):
-            with open(path, 'r') as fp:
-                data = json.load(fp)
+        if OPE(meta_path):
+            with open(meta_path, 'r') as fp:
+                meta = json.load(fp)
+            if meta and fixup:
+                dump_id = meta.get('Id', None)
+                dump_contest_id = meta.get('Contest-Id', None)
+                dump_language = meta.get('Language', None)
+                dump_tags = meta.get('Tags', None)
+                dump_code = meta.get('Source-Code', None)
 
-        if data and fixup:
-            dump_id = data.get('Id', None)
-            dump_contest_id = data.get('Contest-Id', None)
-            dump_language = data.get('Language', None)
-            dump_tags = data.get('Tags', None)
-            dump_code = data.get('Source-Code', None)
-            if not dump_code or len(dump_code) == 0 \
-                    or dump_id != self.id \
-                    or dump_contest_id != self.contest_id \
-                    or (dump_language and dump_language != self.language) \
-                    or (dump_tags and set(dump_tags) != set(self.tags)):
-                ORM(path)
-                data = None
-            else:
-                if not dump_language or not dump_tags:
-                    self.__dump_code(dump_code)
-                    data = self.try_read_code_dump()
-
-        return data
+                if dump_id != self.id \
+                        or dump_contest_id != self.contest_id \
+                        or (dump_language and dump_language != self.language) \
+                        or (dump_tags and set(dump_tags) != set(self.tags)):
+                    ORM(meta_path)
+                    if OPE(data_path):
+                        ORM(data_path)
+                    return False
+                else:
+                    if not OPE(data_path) and dump_code and len(dump_code) > 0:
+                        self.__dump_code(dump_code)
+        return True
 
     def __dump_code(self, text: str) -> None:
         self.__ensure_directories()
-        data = \
+        data_path = self.get_dumped_code_path(self.id, self.contest_id, self.language)
+        meta_path = self.get_dumped_code_meta_path(self.id, self.contest_id, self.language)
+        meta = \
             {
                 'Id': self.id,
                 'Contest-Id': self.contest_id,
                 'Language': self.language,
-                'Tags': self.tags,
-                'Source-Code': text
+                'Tags': self.tags
             }
 
-        path = Submission.get_code_path(self.id, self.contest_id, self.language)
-        if path:
-            with open(path, 'w+') as fp:
-                json.dump(data, fp, indent=4)
+        if meta_path:
+            with open(meta_path, 'w+') as fp:
+                json.dump(meta, fp, indent=4)
+
+        if data_path:
+            with open(data_path, 'w+', encoding='utf-8') as fp:
+                fp.write(text.replace('\\r\\n', '\n').replace('\r\n', '\n').replace('\n\n', '\n'))
