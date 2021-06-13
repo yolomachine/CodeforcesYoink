@@ -22,13 +22,13 @@ class Yanker(metaclass=Singleton):
         for raw_contest in self.__eligible_raw_contests:
             contest_id = raw_contest['id']
             contest_path = Contest.get_path(contest_id, meta=True)
-            contest_instance = Contest.deserialize(path=contest_path)
+            TqdmControl().inc_indent()
+            TqdmControl().inc_pos()
+            contest_instance = Contest.deserialize(download=True, path=contest_path)
             if not contest_instance:
-                TqdmControl().inc_indent()
-                TqdmControl().inc_pos()
                 contest_instance = Contest(download=True, info=raw_contest)
-                TqdmControl().dec_pos()
-                TqdmControl().dec_indent()
+            TqdmControl().dec_pos()
+            TqdmControl().dec_indent()
             self.contests[contest_id] = contest_instance
             progress_bar.update()
 

@@ -69,16 +69,17 @@ class Contest:
                 submissions[submission.id] = submission
 
         # TODO: check if key is present before accessing it.
-        return Contest(submissions=submissions,
+        return Contest(download=kwargs.get('download', False),
+                       submissions=submissions,
                        info={
-                            'id': data['Id'],
-                            'name': data['Name'],
-                            'type': data['Type'],
-                            'phase': data['Phase'],
-                            'frozen': data['Frozen'] == 'True',
-                            'durationSeconds': data['Duration'],
-                            'startTimeSeconds': data['Start-Time'],
-                            'relativeTimeSeconds': data['Relative-Time'],
+                           'id': data['Id'],
+                           'name': data['Name'],
+                           'type': data['Type'],
+                           'phase': data['Phase'],
+                           'frozen': data['Frozen'] == 'True',
+                           'durationSeconds': data['Duration'],
+                           'startTimeSeconds': data['Start-Time'],
+                           'relativeTimeSeconds': data['Relative-Time'],
                        })
 
     @staticmethod
@@ -106,14 +107,19 @@ class Contest:
         if kwargs.get('download', False):
             self.__download_data()
 
-    def download_source_code(self, amount=-1) -> None:
-        size = len(self.submissions) if amount == -1 else amount
+    def download_source_code(self) -> None:
+        size = len(self.submissions)
         submissions = list(self.submissions.values())[:size]
         for submission in tqdm(submissions,
                                total=len(submissions),
                                position=0,
                                leave=True,
-                               desc=f'[{self.id}] Downloading code'):
+                               desc=f'[{self.id}] Validating code'):
+
+            if submission.download_status == enums.DownloadStatus.FINISHED.value:
+                if submission.try_read_code_dump(fixup=True):
+                    continue
+
             if submission.download_status != enums.DownloadStatus.FINISHED.value:
                 self.submissions[submission.id].download_status = submission.download_source_code().value
                 self.__dump()
@@ -137,12 +143,12 @@ class Contest:
             OMD(path)
 
     def __download_data(self) -> None:
-        if len(self.submissions) == 0:
-            for raw_submission in self.__eligible_raw_submissions:
-                submission_id = raw_submission['id']
+        for raw_submission in self.__eligible_raw_submissions:
+            submission_id = raw_submission['id']
+            if submission_id not in self.submissions:
                 self.submissions[submission_id] = Submission(contest_id=self.id,
                                                              info=raw_submission)
-            self.__dump()
+                self.__dump()
 
     def __dump(self) -> None:
         self.__ensure_directories()
@@ -176,8 +182,8 @@ class Contest:
             progress_bar = tqdm(total=max_submissions,
                                 position=TqdmControl().pos,
                                 leave=True,
-                                bar_format=f'{indent}[{self.id}] not found, requesting data')
-            progress_bar.desc = f'{indent}\tDownloading metadata'
+                                bar_format=f'{indent}[{self.id}] Updating metadata')
+            progress_bar.desc = f'{indent}\tFiltering submissions'
             progress_bar.bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]'
         while len(result) < max_submissions or max_submissions == -1:
             raw_submissions = self.__request_raw_submissions(self.id, current_index, batch_size)
@@ -198,7 +204,7 @@ class Contest:
             current_index += batch_size
 
         if progress_bar:
-            progress_bar.bar_format = f'{indent}Finished downloading'
+            progress_bar.bar_format = f'{indent}Finished updating'
             progress_bar.refresh()
             time.sleep(0.1)
             progress_bar.close()

@@ -5,7 +5,7 @@ import time
 import requests
 import yoink.enums as enums
 from typing import Optional
-from yoink.utils import Config, OPE, OMD, shorten_programming_language
+from yoink.utils import Config, OPE, OMD, ORE, OPS, ORM, shorten_programming_language
 from yoink.utils import reset_timeout_counter, check_for_redirecting, check_for_status, get_html_content
 
 
@@ -120,16 +120,50 @@ class Submission:
         self.download_status = status.value
         return status
 
+    def try_read_code_dump(self, fixup=False) -> Optional[dict]:
+        path = self.get_code_path(self.id, self.contest_id, self.language)
+
+        if not OPE(path) and OPE(OPS(path)[0]):
+            ORE(OPS(path)[0], path)
+
+        data = None
+
+        if OPE(path):
+            with open(path, 'r') as fp:
+                data = json.load(fp)
+
+        if data and fixup:
+            dump_id = data.get('Id', None)
+            dump_contest_id = data.get('Contest-Id', None)
+            dump_language = data.get('Language', None)
+            dump_tags = data.get('Tags', None)
+            dump_code = data.get('Source-Code', None)
+            if not dump_code or len(dump_code) == 0 \
+                    or dump_id != self.id \
+                    or dump_contest_id != self.contest_id \
+                    or (dump_language and dump_language != self.language) \
+                    or (dump_tags and set(dump_tags) != set(self.tags)):
+                ORM(path)
+                data = None
+            else:
+                if not dump_language or not dump_tags:
+                    self.__dump_code(dump_code)
+                    data = self.try_read_code_dump()
+
+        return data
+
     def __dump_code(self, text: str) -> None:
         self.__ensure_directories()
         data = \
             {
                 'Id': self.id,
                 'Contest-Id': self.contest_id,
+                'Language': self.language,
+                'Tags': self.tags,
                 'Source-Code': text
             }
 
         path = Submission.get_code_path(self.id, self.contest_id, self.language)
         if path:
             with open(path, 'w+') as fp:
-                json.dump(data, fp)
+                json.dump(data, fp, indent=4)

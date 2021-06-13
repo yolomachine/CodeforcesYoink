@@ -10,6 +10,9 @@ from bs4 import BeautifulSoup
 OPE = os.path.exists
 OPJ = os.path.join
 OMD = os.mkdir
+OPS = os.path.splitext
+ORE = os.rename
+ORM = os.remove
 
 __cc2sc_splitter = re.compile(r'(?<!^)(?=[A-Z])')
 __timeout_counter = 0
@@ -164,8 +167,8 @@ class Config(metaclass=Singleton):
             'Request-Timeout': 120,
             'Request-Delay': 1,
             'Initial-Contest-Id': -1,
-            'Max-Contests': -1,
-            'Max-Submissions': -1,
+            'Max-Contests': 10,
+            'Max-Submissions': 2000,
             'Supported-Contest-Formats': [
                 enums.Type.CF.value,
                 enums.Type.ICPC.value
