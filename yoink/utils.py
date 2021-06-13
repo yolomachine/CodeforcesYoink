@@ -164,6 +164,7 @@ class Config(metaclass=Singleton):
                 'Upgrade-Insecure-Requests': '1',
                 'User-Agent': ''
             },
+            'After-Update': False,
             'Request-Timeout': 120,
             'Request-Delay': 1,
             'Initial-Contest-Id': -1,
