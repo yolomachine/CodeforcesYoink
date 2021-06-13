@@ -148,7 +148,7 @@ class Contest:
             if submission_id not in self.submissions:
                 self.submissions[submission_id] = Submission(contest_id=self.id,
                                                              info=raw_submission)
-                self.__dump()
+        self.__dump()
 
     def __dump(self) -> None:
         self.__ensure_directories()
