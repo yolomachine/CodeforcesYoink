@@ -116,6 +116,10 @@ class Contest:
                                leave=True,
                                desc=f'[{self.id}] Validating code'):
 
+            if submission.language not in Config()['Supported-Languages'] or \
+                    len(Config()['Supported-Languages']) == 0:
+                continue
+
             if submission.download_status == enums.DownloadStatus.FINISHED.value:
                 if submission.validate_code(fixup=True):
                     continue
