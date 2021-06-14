@@ -3,9 +3,11 @@ import json
 import re
 import time
 import requests
+import shutil
 import yoink.enums as enums
 from typing import Optional, Generator, Any, Union
 from bs4 import BeautifulSoup
+from jsonmerge import Merger
 
 OPE = os.path.exists
 OPJ = os.path.join
@@ -108,6 +110,39 @@ def get_html_content(response: requests.Response, **kwargs) -> Optional[str]:
     except AttributeError:
         issue_timeout()
         return None
+
+
+def merge_data_sources(path_from: str, path_to: str):
+    from_dirs = os.listdir(path_from)
+    to_dirs = os.listdir(path_to)
+
+    schema = {
+        'properties': {
+            'submissions': {
+                'mergeStrategy': 'append'
+            }
+        }
+    }
+    merger = Merger(schema)
+
+    for rd in from_dirs:
+        from_dir = OPJ(path_from, rd)
+        to_dir = OPJ(path_to, rd)
+        if rd not in to_dirs:
+            shutil.copytree(from_dir, to_dir, dirs_exist_ok=True)
+            continue
+
+        with open(OPJ(to_dir, 'meta.json'), 'r', encoding='utf-8') as fp:
+            lhs_meta_json = json.load(fp)
+
+        with open(OPJ(from_dir, 'meta.json'), 'r', encoding='utf-8') as fp:
+            rhs_meta_json = json.load(fp)
+
+        result = merger.merge(lhs_meta_json, rhs_meta_json)
+        shutil.copytree(from_dir, to_dir, dirs_exist_ok=True)
+
+        with open(OPJ(to_dir, 'meta.json'), 'w', encoding='utf-8') as fp:
+            json.dump(result, fp, indent=4)
 
 
 class CustomDefaultDict(dict):
