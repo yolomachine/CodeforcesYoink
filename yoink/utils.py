@@ -18,6 +18,7 @@ ORM = os.remove
 
 __cc2sc_splitter = re.compile(r'(?<!^)(?=[A-Z])')
 __timeout_counter = 0
+__consecutive_timeouts_counter = 0
 __language_map = {
     'c++': 'cpp',
     'clang': 'cpp',
@@ -63,17 +64,27 @@ def shorten_programming_language(language: str) -> str:
     return language
 
 
-def reset_timeout_counter() -> None:
+def reset_timeout_counter(reset_consecutive=False) -> None:
     global __timeout_counter
+    global __consecutive_timeouts_counter
     __timeout_counter = 0
+    if reset_consecutive:
+        __consecutive_timeouts_counter = 0
 
 
 def issue_timeout() -> None:
     global __timeout_counter
+    global __consecutive_timeouts_counter
     __timeout_counter += 1
     if __timeout_counter >= 5:
+        __consecutive_timeouts_counter += 1
         time.sleep(Config()['Request-Timeout'])
         reset_timeout_counter()
+
+
+def check_consecutive_timeouts() -> bool:
+    global __consecutive_timeouts_counter
+    return __consecutive_timeouts_counter >= 5
 
 
 def check_for_redirecting(response: requests.Response) -> bool:

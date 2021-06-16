@@ -9,6 +9,7 @@ from functools import cached_property, lru_cache
 from yoink import enums
 from yoink.submission import Submission
 from yoink.utils import cc2sc, Config, OPE, OMD, TqdmControl
+from yoink.utils import check_consecutive_timeouts, reset_timeout_counter
 
 
 class Contest:
@@ -115,6 +116,10 @@ class Contest:
                                position=0,
                                leave=True,
                                desc=f'[{self.id}] Validating code'):
+
+            if check_consecutive_timeouts():
+                reset_timeout_counter(reset_consecutive=True)
+                break
 
             if submission.language not in Config()['Supported-Languages'] or \
                     len(Config()['Supported-Languages']) == 0:

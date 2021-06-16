@@ -128,7 +128,7 @@ class Submission:
             self.download_status = status.value
             return status
 
-        reset_timeout_counter()
+        reset_timeout_counter(reset_consecutive=True)
         self.__dump_code(text)
         status = enums.DownloadStatus.FINISHED
         self.download_status = status.value
