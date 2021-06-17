@@ -108,11 +108,20 @@ class Contest:
         if kwargs.get('download', False):
             self.__download_data()
 
+    @staticmethod
+    def __validate_submission(submission):
+        languages = Config()['Supported-Languages']
+        return submission.language not in languages or \
+               any(map(lambda tag: tag in Config()['Excluded-Tags'], submission.tags)) or \
+               submission.download_status == enums.DownloadStatus.FINISHED.value and \
+               submission.validate_code(fixup=True)
+
     def download_source_code(self) -> None:
         max_submissions = Config()['Max-Submissions']
-        size = len(self.submissions)
+        submissions = list(filter(lambda s: not Contest.__validate_submission(s), self.submissions.values()))
+        size = len(submissions)
         size = size if max_submissions <= 0 else min(size, max_submissions)
-        submissions = list(self.submissions.values())[:size]
+        submissions = list(submissions)[:size]
         for submission in tqdm(submissions,
                                total=len(submissions),
                                position=0,
@@ -123,17 +132,8 @@ class Contest:
                 reset_timeout_counter(reset_consecutive=True)
                 break
 
-            if submission.language not in Config()['Supported-Languages'] or \
-                    len(Config()['Supported-Languages']) == 0:
-                continue
-
-            if submission.download_status == enums.DownloadStatus.FINISHED.value:
-                if submission.validate_code(fixup=True):
-                    continue
-
-            if submission.download_status != enums.DownloadStatus.FINISHED.value:
-                self.submissions[submission.id].download_status = submission.download_source_code().value
-                self.__dump()
+            self.submissions[submission.id].download_status = submission.download_source_code().value
+            self.__dump()
 
     def __sync(self, info) -> None:
         self.id = info['id']
@@ -174,6 +174,7 @@ class Contest:
     def __is_eligible(raw_submission) -> bool:
         try:
             return \
+                not any(map(lambda tag: tag in Config()['Excluded-Tags'], raw_submission['problem']['tags'])) and \
                 raw_submission['verdict'] in Config()['Supported-Verdicts'] \
                 and (raw_submission['programmingLanguage'] in Config()['Supported-Languages'] or
                      len(Config()['Supported-Languages']) == 0)

@@ -235,19 +235,7 @@ class Config(metaclass=Singleton):
                 enums.Language.GPP17.value,
                 enums.Language.GPP17_64.value,
             ],
-            "Tag-Caps": {
-                enums.Tag.SORT.value: 1000,
-                enums.Tag.MATH.value: 1000,
-                enums.Tag.GAMES.value: 1000,
-                enums.Tag.GREEDY.value: 1000,
-                enums.Tag.GRAPHS.value: 1000,
-                enums.Tag.DYNAMIC.value: 1000,
-                enums.Tag.BIN_SEARCH.value: 1000,
-                enums.Tag.INTERACTIVE.value: 1000,
-                enums.Tag.CONSTRUCTIVE.value: 1000,
-                enums.Tag.COMBINATORICS.value: 1000,
-                enums.Tag.DATA_STRUCTURES.value: 1000,
-            },
+            'Excluded-Tags': [],
         }
 
         self.__ensure_data()
