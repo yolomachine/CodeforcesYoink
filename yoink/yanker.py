@@ -96,4 +96,4 @@ class Yanker(metaclass=Singleton):
             print(r.status_code)
             exit()
 
-        return r.json()['result']
+        return sorted(r.json()['result'], key=lambda x: x['id'], reverse=True)
