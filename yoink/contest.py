@@ -109,7 +109,9 @@ class Contest:
             self.__download_data()
 
     def download_source_code(self) -> None:
+        max_submissions = Config()['Max-Submissions']
         size = len(self.submissions)
+        size = size if max_submissions <= 0 else min(size, max_submissions)
         submissions = list(self.submissions.values())[:size]
         for submission in tqdm(submissions,
                                total=len(submissions),
