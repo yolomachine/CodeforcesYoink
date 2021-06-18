@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 import time
 import requests
@@ -122,11 +123,12 @@ class Contest:
         size = len(submissions)
         size = size if max_submissions <= 0 else min(size, max_submissions)
         submissions = list(submissions)[:size]
+        now = datetime.datetime.now()
         for submission in tqdm(submissions,
                                total=len(submissions),
                                position=0,
                                leave=True,
-                               desc=f'[{self.id}] Validating code'):
+                               desc=f'[{self.id}][{now.hour:02d}:{now.minute:02d}] Downloading code'):
 
             if check_consecutive_timeouts():
                 reset_timeout_counter(reset_consecutive=True)
