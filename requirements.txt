@@ -1,0 +1,14 @@
+attrs==21.2.0
+beautifulsoup4==4.9.3
+bs4==0.0.1
+certifi==2020.12.5
+chardet==4.0.0
+idna==2.10
+jsonmerge==1.8.0
+jsonschema==3.2.0
+pyrsistent==0.17.3
+requests==2.25.1
+six==1.16.0
+soupsieve==2.2.1
+tqdm==4.60.0
+urllib3==1.26.4
