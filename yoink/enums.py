@@ -9,6 +9,7 @@ class AutoName(Enum):
 class ProgrammingLanguageEnum(Enum):
     def _generate_next_value_(name, start, count, last_values) -> str:
         __language_map = {
+            'GCC':       'GNU C',
             'MSCL':      'MS C++',
             'MSCL17':    'MS C++ 2017',
             'CLANG17_D': 'Clang++17 Diagnostics',
@@ -143,6 +144,7 @@ class Type(AutoName):
 
 @unique
 class Language(ProgrammingLanguageEnum):
+    GCC = auto()
     MSCL = auto()
     MSCL17 = auto()
     CLANG17_D = auto()

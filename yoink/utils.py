@@ -25,6 +25,7 @@ __language_map = {
     'java': 'java',
     'c#': 'cs',
     'py': 'py',
+    'gnuc': 'c',
 }
 
 
